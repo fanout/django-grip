@@ -65,7 +65,7 @@ from django_grip import publish, set_hold_stream
 def myendpoint(request):
     if request.method == 'GET':
         # subscribe every incoming request to a channel in stream mode
-        resp = HttpResponse('[stream open']\n')
+        resp = HttpResponse('[stream open]\n')
         set_hold_stream(resp, 'test')
         return resp
     elif request.method == 'POST':
