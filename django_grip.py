@@ -83,6 +83,10 @@ def _get_pubcontrolset():
 def _make_grip_channel_header(channels):
 	if isinstance(channels, Channel):
 		channels = [channels]
+	elif isinstance(channels, basestring):
+		channels = [Channel(channels)]
+	assert(len(channels) > 0)
+
 	parts = list()
 	for channel in channels:
 		s = channel.name
