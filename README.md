@@ -74,7 +74,7 @@ from django_grip import set_hold_stream, publish
 
 def myendpoint(request):
     if request.method == 'GET':
-	# if the request didn't come through a GRIP proxy, throw 501
+        # if the request didn't come through a GRIP proxy, throw 501
         if not request.grip_proxied:
             return HttpResponse('Not Implemented\n', status=501)
 
