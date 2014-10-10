@@ -201,6 +201,10 @@ def websocket_only(view_func):
 
 class GripMiddleware(object):
 	def process_request(self, request):
+		# make sure these are always set
+		request.grip_proxied = False
+		request.wscontext = None
+
 		grip_signed = False
 		grip_sig_header = request.META.get('HTTP_GRIP_SIG')
 		if grip_sig_header:
@@ -246,8 +250,8 @@ class GripMiddleware(object):
 			return HttpResponseBadRequest('Request must contain WebSocket events.\n')
 
 	def process_response(self, request, response):
-		# if this was originally a websocket-events request, then hijack the response
-		if request.wscontext:
+		# if this was a successful websocket-events request, then hijack the response
+		if request.wscontext and response.status_code == 200 and len(response.content) == 0:
 			wscontext = request.wscontext
 
 			# meta to remove?
@@ -278,7 +282,7 @@ class GripMiddleware(object):
 				events.append(WebSocketEvent('OPEN'))
 			events.extend(wscontext.out_events)
 			if wscontext.closed:
-				events.append(WebSocketEvent('CLOSE', pack('H', wscontext.close_code)))
+				events.append(WebSocketEvent('CLOSE', pack('H', wscontext.out_close_code)))
 
 			response = HttpResponse(encode_websocket_events(events), content_type='application/websocket-events')
 			if wscontext.accepted:
