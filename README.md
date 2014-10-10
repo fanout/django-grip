@@ -96,7 +96,7 @@ Stateless WebSocket echo service with broadcast endpoint:
 ```python
 from django.http import HttpResponse, HttpResponseNotAllowed
 from gripcontrol import WebSocketMessageFormat
-from django_grip import websocket_only
+from django_grip import websocket_only, publish
 
 # decorator means reject non-websocket-related requests. it also means we
 #   don't need to return an HttpResponse object. the middleware will take care
