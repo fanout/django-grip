@@ -125,7 +125,7 @@ def echo(request):
 
 def broadcast(request):
     if request.method == 'POST':
-        # publish data to all connections to the echo endpoint
+        # publish data to all clients that are connected to the echo endpoint
         data = request.POST['data']
         publish('test', WebSocketMessageFormat(data))
         return HttpResponse('Ok\n')
