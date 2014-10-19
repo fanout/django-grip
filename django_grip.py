@@ -251,7 +251,7 @@ class GripMiddleware(object):
 
 	def process_response(self, request, response):
 		# if this was a successful websocket-events request, then hijack the response
-		if request.wscontext and response.status_code == 200 and len(response.content) == 0:
+		if getattr(request, 'wscontext', None) and response.status_code == 200 and len(response.content) == 0:
 			wscontext = request.wscontext
 
 			# meta to remove?
