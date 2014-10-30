@@ -1,5 +1,8 @@
 from copy import deepcopy
 from struct import pack, unpack
+from urlparse import urlparse, parse_qs
+from urllib import urlencode
+from base64 import b64decode
 import threading
 import atexit
 from functools import wraps
@@ -293,3 +296,30 @@ class GripMiddleware(object):
 				response['Set-Meta-' + k] = v
 
 		return response
+
+def parse_grip_uri(uri):
+	parsed = urlparse(uri)
+	params = parse_qs(parsed.query)
+	iss = None
+	key = None
+	if 'iss' in params:
+		iss = params['iss'][0]
+		del params['iss']
+	if 'key' in params:
+		key = params['key'][0]
+		del params['key']
+	if key is not None and key.startswith('base64:'):
+		key = b64decode(key[7:])
+	qs = urlencode(params, True)
+	path = parsed.path
+	if path.endswith('/'):
+		path = path[:-1]
+	control_uri = parsed.scheme + '://' + parsed.netloc + path
+	if qs:
+		control_uri += '?' + qs
+	out = {'control_uri': control_uri}
+	if iss:
+		out['control_iss'] = iss
+	if key:
+		out['key'] = key
+	return out
