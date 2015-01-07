@@ -1,5 +1,5 @@
 Django-GRIP
------------
+===========
 Author: Justin Karneges <justin@fanout.io>
 
 GRIP library for Python/Django.
