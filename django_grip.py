@@ -27,15 +27,15 @@ def publish(channel, formats, id=None, prev_id=None, blocking=False, callback=No
 	pub = _get_pubcontrol()
 	pub.publish(channel, Item(formats, id=id, prev_id=prev_id), blocking=blocking, callback=callback)
 
-def set_hold_longpoll(response, channels, timeout=None):
-	response.grip_info = {
+def set_hold_longpoll(request, channels, timeout=None):
+	request.grip_info = {
 		'hold': 'response',
 		'channels': channels}
 	if timeout:
-		response.grip_info['timeout'] = timeout
+		request.grip_info['timeout'] = timeout
 
-def set_hold_stream(response, channels):
-	response.grip_info = {
+def set_hold_stream(request, channels):
+	request.grip_info = {
 		'hold': 'stream',
 		'channels': channels}
 
@@ -219,16 +219,22 @@ class GripMiddleware(object):
 			for k, v in meta_set.iteritems():
 				response['Set-Meta-' + k] = v
 		else:
-			if getattr(response, 'grip_info', None):
+			grip_info = None
+			if hasattr(request, 'grip_info'):
+				grip_info = request.grip_info
+			elif hasattr(response, 'grip_info'):
+				# old django-grip versions required passing an HttpResponse to the
+				#   set_hold_* methods, so fall back to that for backwards compat
 				grip_info = response.grip_info
 
+			if grip_info:
 				# code 304 only allows certain headers. if the webserver
 				#   strictly enforces this, then we won't be able to use
 				#   Grip- headers to talk to the proxy. work around this by
 				#   using body instructions instead.
 				if response.status_code == 304:
 					headers = list()
-					for k, v in response.iteritems():
+					for k, v in response.items():
 						headers.append([k, v])
 					iresponse = Response(
 						code=response.status_code,
@@ -240,7 +246,7 @@ class GripMiddleware(object):
 						grip_info['channels'],
 						iresponse,
 						timeout=grip_info.get('timeout'))
-					response = HttpResponse(body, content_type='application/grip-instruct')
+					response = HttpResponse(body + '\n', content_type='application/grip-instruct')
 				else:
 					response['Grip-Hold'] = grip_info['hold']
 					response['Grip-Channel'] = create_grip_channel_header(grip_info['channels'])
