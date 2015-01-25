@@ -55,15 +55,16 @@ PUBLISH_SERVERS = [
 ]
 ```
 
-This library also comes with a Django middleware class, which you should use. The middleware will parse the Grip-Sig header in any requests in order to detect if they came from a GRIP proxy. Additionally, the middleware handles WebSocket-Over-HTTP processing so that WebSockets managed by the GRIP proxy can be controlled via HTTP responses from the Django application.
+This library also comes with a Django middleware class, which you should use. The middleware will parse the Grip-Sig header in any requests in order to detect if they came from a GRIP proxy, and it will apply any hold instructions when responding. Additionally, the middleware handles WebSocket-Over-HTTP processing so that WebSockets managed by the GRIP proxy can be controlled via HTTP responses from the Django application.
 
 ```python
 MIDDLEWARE_CLASSES = (
-    ...
     'django_grip.GripMiddleware',
     ...
 )
 ```
+
+The middleware should be placed as early as possible in the proessing order, so that it can collect all response headers and provide them in a hold instruction if necessary.
 
 Example view:
 
