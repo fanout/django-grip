@@ -6,10 +6,11 @@ from functools import wraps
 from django.utils.decorators import available_attrs
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
-from pubcontrol import PubControl, Item
-from gripcontrol import GripPubControl, WebSocketEvent, validate_sig, \
-	create_grip_channel_header, decode_websocket_events, \
-	encode_websocket_events, websocket_control_message
+from pubcontrol import Item
+from gripcontrol import Response, GripPubControl, WebSocketEvent, \
+	validate_sig, create_grip_channel_header, create_hold, \
+	decode_websocket_events, encode_websocket_events, \
+	websocket_control_message
 
 _threadlocal = threading.local()
 
@@ -27,14 +28,16 @@ def publish(channel, formats, id=None, prev_id=None, blocking=False, callback=No
 	pub.publish(channel, Item(formats, id=id, prev_id=prev_id), blocking=blocking, callback=callback)
 
 def set_hold_longpoll(response, channels, timeout=None):
-	response['Grip-Hold'] = 'response'
-	response['Grip-Channel'] = create_grip_channel_header(channels)
+	response.grip_info = {
+		'hold': 'response',
+		'channels': channels}
 	if timeout:
-		response['Grip-Timeout'] = str(timeout)
+		response.grip_info['timeout'] = timeout
 
 def set_hold_stream(response, channels):
-	response['Grip-Hold'] = 'stream'
-	response['Grip-Channel'] = create_grip_channel_header(channels)
+	response.grip_info = {
+		'hold': 'stream',
+		'channels': channels}
 
 class WebSocketContext(object):
 	def __init__(self, id, meta, in_events):
@@ -215,5 +218,33 @@ class GripMiddleware(object):
 				response['Set-Meta-' + k] = ''
 			for k, v in meta_set.iteritems():
 				response['Set-Meta-' + k] = v
+		else:
+			if getattr(response, 'grip_info', None):
+				grip_info = response.grip_info
+
+				# code 304 only allows certain headers. if the webserver
+				#   strictly enforces this, then we won't be able to use
+				#   Grip- headers to talk to the proxy. work around this by
+				#   using body instructions instead.
+				if response.status_code == 304:
+					headers = list()
+					for k, v in response.iteritems():
+						headers.append([k, v])
+					iresponse = Response(
+						code=response.status_code,
+						reason=getattr(response, 'reason_phrase', None),
+						headers=headers,
+						body=response.content)
+					body = create_hold(
+						grip_info['hold'],
+						grip_info['channels'],
+						iresponse,
+						timeout=grip_info.get('timeout'))
+					response = HttpResponse(body, content_type='application/grip-instruct')
+				else:
+					response['Grip-Hold'] = grip_info['hold']
+					response['Grip-Channel'] = create_grip_channel_header(grip_info['channels'])
+					if 'timeout' in grip_info:
+						response['Grip-Timeout'] = str(grip_info['timeout'])
 
 		return response
