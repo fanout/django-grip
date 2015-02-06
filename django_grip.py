@@ -7,12 +7,21 @@ from django.utils.decorators import available_attrs
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from pubcontrol import Item
-from gripcontrol import Response, GripPubControl, WebSocketEvent, \
+from gripcontrol import Channel, Response, GripPubControl, WebSocketEvent, \
 	validate_sig, create_grip_channel_header, create_hold, \
 	decode_websocket_events, encode_websocket_events, \
 	websocket_control_message
 
 _threadlocal = threading.local()
+
+def _is_basestring_instance(instance):
+	try:
+		if isinstance(instance, basestring):
+			return True
+	except NameError:
+		if isinstance(instance, str):
+			return True
+	return False
 
 def _get_pubcontrol():
 	if not hasattr(_threadlocal, 'pubcontrol'):
@@ -23,21 +32,39 @@ def _get_pubcontrol():
 		_threadlocal.pubcontrol = pub
 	return _threadlocal.pubcontrol
 
+def _get_prefix():
+	return getattr(settings, 'GRIP_PREFIX', '')
+
+# convert input to list of Channel objects
+def _convert_channels(channels):
+	if isinstance(channels, Channel) or _is_basestring_instance(channels):
+		channels = [channels]
+	out = list()
+	for c in channels:
+		if _is_basestring_instance(c):
+			c = Channel(c)
+		assert(isinstance(c, Channel))
+		out.append(c)
+	return out
+
 def publish(channel, formats, id=None, prev_id=None, blocking=False, callback=None):
 	pub = _get_pubcontrol()
-	pub.publish(channel, Item(formats, id=id, prev_id=prev_id), blocking=blocking, callback=callback)
+	pub.publish(_get_prefix() + channel,
+		Item(formats, id=id, prev_id=prev_id),
+		blocking=blocking,
+		callback=callback)
 
 def set_hold_longpoll(request, channels, timeout=None):
 	request.grip_info = {
 		'hold': 'response',
-		'channels': channels}
+		'channels': _convert_channels(channels)}
 	if timeout:
 		request.grip_info['timeout'] = timeout
 
 def set_hold_stream(request, channels):
 	request.grip_info = {
 		'hold': 'stream',
-		'channels': channels}
+		'channels': _convert_channels(channels)}
 
 class WebSocketContext(object):
 	def __init__(self, id, meta, in_events):
@@ -98,10 +125,12 @@ class WebSocketContext(object):
 		self.out_events.append(WebSocketEvent('TEXT', 'c:' + message))
 
 	def subscribe(self, channel):
-		self.send_control(websocket_control_message('subscribe', {'channel': channel}))
+		self.send_control(websocket_control_message(
+			_get_prefix() + 'subscribe', {'channel': channel}))
 
 	def unsubscribe(self, channel):
-		self.send_control(websocket_control_message('unsubscribe', {'channel': channel}))
+		self.send_control(websocket_control_message(
+			_get_prefix() + 'unsubscribe', {'channel': channel}))
 
 	def detach(self):
 		self.send_control(websocket_control_message('detach'))
@@ -140,6 +169,9 @@ class GripMiddleware(object):
 				if validate_sig(grip_sig_header, entry['key']):
 					grip_signed = True
 					break
+
+		if not grip_signed and getattr(settings, 'GRIP_PROXY_REQUIRED', False):
+			return HttpResponse('Not Implemented\n', status=501)
 
 		content_type = request.META.get('CONTENT_TYPE')
 		if content_type:
@@ -228,6 +260,14 @@ class GripMiddleware(object):
 				grip_info = response.grip_info
 
 			if grip_info:
+				channels = grip_info['channels']
+
+				# apply prefix to channels if needed
+				prefix = _get_prefix()
+				if prefix:
+					for c in channels:
+						c.name = prefix + c.name
+
 				# code 304 only allows certain headers. if the webserver
 				#   strictly enforces this, then we won't be able to use
 				#   Grip- headers to talk to the proxy. work around this by
@@ -243,13 +283,13 @@ class GripMiddleware(object):
 						body=response.content)
 					body = create_hold(
 						grip_info['hold'],
-						grip_info['channels'],
+						channels,
 						iresponse,
 						timeout=grip_info.get('timeout'))
 					response = HttpResponse(body + '\n', content_type='application/grip-instruct')
 				else:
 					response['Grip-Hold'] = grip_info['hold']
-					response['Grip-Channel'] = create_grip_channel_header(grip_info['channels'])
+					response['Grip-Channel'] = create_grip_channel_header(channels)
 					if 'timeout' in grip_info:
 						response['Grip-Timeout'] = str(grip_info['timeout'])
 
