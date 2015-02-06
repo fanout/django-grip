@@ -4,14 +4,14 @@ from setuptools import setup
 
 setup(
 name='django-grip',
-version='1.3.0',
+version='1.4.0',
 description='Django GRIP library',
 author='Justin Karneges',
 author_email='justin@fanout.io',
 url='https://github.com/fanout/django-grip',
 license='MIT',
 py_modules=['django_grip'],
-install_requires=['pubcontrol>=2.0.0', 'gripcontrol>=2.3.0'],
+install_requires=['pubcontrol>=2,<3', 'gripcontrol>=2.3,<3'],
 classifiers=[
 	'Topic :: Utilities',
 	'License :: OSI Approved :: MIT License'
