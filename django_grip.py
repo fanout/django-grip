@@ -170,9 +170,6 @@ class GripMiddleware(object):
 					grip_signed = True
 					break
 
-		if not grip_signed and getattr(settings, 'GRIP_PROXY_REQUIRED', False):
-			return HttpResponse('Not Implemented\n', status=501)
-
 		content_type = request.META.get('CONTENT_TYPE')
 		if content_type:
 			at = content_type.find(';')
@@ -260,6 +257,9 @@ class GripMiddleware(object):
 				grip_info = response.grip_info
 
 			if grip_info:
+				if not request.grip_proxied and getattr(settings, 'GRIP_PROXY_REQUIRED', False):
+					return HttpResponse('Not Implemented\n', status=501)
+
 				channels = grip_info['channels']
 
 				# apply prefix to channels if needed
