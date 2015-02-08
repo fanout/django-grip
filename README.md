@@ -43,6 +43,18 @@ GRIP_PROXIES = [
 ]
 ```
 
+To reject incoming requests that do not come from validated GRIP proxies add GRIP_PROXY_REQUIRED to your configuration:
+
+```
+GRIP_PROXY_REQUIRED = True
+```
+
+To use a custom GRIP message prefix set GRIP_PREFIX in your configuration:
+
+```
+GRIP_PREFIX = '<prefix>'
+```
+
 You can also set any other EPCP servers that aren't necessarily proxies with PUBLISH_SERVERS:
 
 ```python
