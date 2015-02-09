@@ -35,7 +35,7 @@ MIDDLEWARE_CLASSES = (
 )
 ```
 
-The middleware should be placed as early as possible in the proessing order, so that it can collect all response headers and provide them in a hold instruction if necessary.
+The middleware should be placed as early as possible in the processing order, so that it can collect all response headers and provide them in a hold instruction if necessary.
 
 Additionally, set GRIP_PROXIES:
 
