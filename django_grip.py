@@ -126,11 +126,11 @@ class WebSocketContext(object):
 
 	def subscribe(self, channel):
 		self.send_control(websocket_control_message(
-			_get_prefix() + 'subscribe', {'channel': channel}))
+			'subscribe', {'channel': _get_prefix() + channel}))
 
 	def unsubscribe(self, channel):
 		self.send_control(websocket_control_message(
-			_get_prefix() + 'unsubscribe', {'channel': channel}))
+			'unsubscribe', {'channel': _get_prefix() + channel}))
 
 	def detach(self):
 		self.send_control(websocket_control_message('detach'))
