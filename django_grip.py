@@ -113,7 +113,7 @@ class WebSocketContext(object):
 			return e.content
 		elif e.type == 'CLOSE':
 			if e.content and len(e.content) == 2:
-				self.close_code = unpack('H', e.content)[0]
+				self.close_code = unpack('>H', e.content)[0]
 			return None
 		else: # DISCONNECT
 			raise IOError('client disconnected unexpectedly')
@@ -238,7 +238,7 @@ class GripMiddleware(object):
 				events.append(WebSocketEvent('OPEN'))
 			events.extend(wscontext.out_events)
 			if wscontext.closed:
-				events.append(WebSocketEvent('CLOSE', pack('H', wscontext.out_close_code)))
+				events.append(WebSocketEvent('CLOSE', pack('>H', wscontext.out_close_code)))
 
 			response = HttpResponse(encode_websocket_events(events), content_type='application/websocket-events')
 			if wscontext.accepted:
