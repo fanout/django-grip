@@ -109,8 +109,16 @@ class WebSocketContext(object):
 		if e is None:
 			raise IndexError('read from empty buffer')
 
-		if e.type == 'TEXT' or e.type == 'BINARY':
-			return e.content
+		if e.type == 'TEXT':
+			if e.content:
+				return e.content.decode('utf-8')
+			else:
+				return u''
+		elif e.type == 'BINARY':
+			if e.content:
+				return e.content
+			else:
+				return ''
 		elif e.type == 'CLOSE':
 			if e.content and len(e.content) == 2:
 				self.close_code = unpack('>H', e.content)[0]
@@ -119,9 +127,18 @@ class WebSocketContext(object):
 			raise IOError('client disconnected unexpectedly')
 
 	def send(self, message):
+		if isinstance(message, unicode):
+			message = message.encode('utf-8')
 		self.out_events.append(WebSocketEvent('TEXT', 'm:' + message))
 
+	def send_binary(self, message):
+		if isinstance(message, unicode):
+			message = message.encode('utf-8')
+		self.out_events.append(WebSocketEvent('BINARY', 'm:' + message))
+
 	def send_control(self, message):
+		if isinstance(message, unicode):
+			message = message.encode('utf-8')
 		self.out_events.append(WebSocketEvent('TEXT', 'c:' + message))
 
 	def subscribe(self, channel):
@@ -191,8 +208,10 @@ class GripMiddleware(object):
 			for k, v in request.META.iteritems():
 				if k.startswith('HTTP_META_'):
 					meta[_convert_header_name(k[10:])] = v
+			body = request.body
+			assert(not isinstance(body, unicode))
 			try:
-				events = decode_websocket_events(request.body)
+				events = decode_websocket_events(body)
 			except:
 				return HttpResponseBadRequest('Error parsing WebSocket events.\n')
 
