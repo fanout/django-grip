@@ -35,6 +35,35 @@ def _get_pubcontrol():
 	_lock.release()
 	return _pubcontrol
 
+
+# An internal method used for retrieving the PubControl instance for the
+# specified realm, key, and SSL values. If no values are specified then
+# the global values are used. The PubControl instance is saved and if an
+# instance is not available when this method is called then one will be
+# created.
+def _get_pubcontrol(realm=None, key=None, ssl=True):
+	if realm is None and key is None:
+		realm = globals()['realm']
+		key = globals()['key']
+		ssl = globals()['ssl']
+	assert(realm)
+	assert(key)
+	_lock.acquire()
+	if (realm, key, ssl) not in _pubcontrols:
+		if ssl:
+			scheme = 'https'
+		else:
+			scheme = 'http'
+		_pubcontrols[(realm, key, ssl)] = PubControl({
+			'uri': '%s://api.fanout.io/realm/%s' % (scheme, realm),
+			'iss': realm,
+			'key': b64decode(key)
+		})
+		atexit.register(_pubcontrols[(realm, key, ssl)].finish)
+	_lock.release()
+	return _pubcontrols[(realm, key, ssl)]
+
+
 def _get_prefix():
 	return getattr(settings, 'GRIP_PREFIX', '')
 
