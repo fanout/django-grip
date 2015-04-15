@@ -26,6 +26,7 @@ def _is_basestring_instance(instance):
 	return False
 
 def _get_pubcontrol():
+	global _pubcontrol
 	_lock.acquire()
 	if _pubcontrol is None:
 		_pubcontrol = GripPubControl()
