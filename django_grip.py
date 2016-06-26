@@ -178,16 +178,36 @@ class GripMiddleware(object):
 	def process_request(self, request):
 		# make sure these are always set
 		request.grip_proxied = False
+		request.grip_signed = False
 		request.wscontext = None
 
+		grip_proxied = False
 		grip_signed = False
+
 		grip_sig_header = request.META.get('HTTP_GRIP_SIG')
 		if grip_sig_header:
-			# did any of the known proxies sign this request?
-			for entry in getattr(settings, 'GRIP_PROXIES', []):
-				if validate_sig(grip_sig_header, entry['key']):
-					grip_signed = True
+			proxies = getattr(settings, 'GRIP_PROXIES', [])
+
+			all_proxies_have_keys = True
+			for entry in proxies:
+				if 'key' not in entry:
+					all_proxies_have_keys = False
 					break
+
+			if all_proxies_have_keys:
+				# if all proxies have keys, then don't
+				#   consider the request to be proxied unless
+				#   one of them signed it
+				for entry in proxies:
+					if validate_sig(grip_sig_header, entry['key']):
+						grip_proxied = True
+						grip_signed = True
+						break
+			else:
+				# if even one proxy doesn't have a key, then
+				#   don't require verification in order to
+				#   consider the request to have been proxied
+				grip_proxied = True
 
 		content_type = request.META.get('CONTENT_TYPE')
 		if content_type:
@@ -219,7 +239,8 @@ class GripMiddleware(object):
 
 			wscontext = WebSocketContext(cid, meta, events)
 
-		request.grip_proxied = grip_signed
+		request.grip_proxied = grip_proxied
+		request.grip_signed = grip_signed
 		request.wscontext = wscontext
 
 	def process_view(self, request, view_func, view_args, view_kwargs):
