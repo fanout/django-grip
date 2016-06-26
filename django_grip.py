@@ -1,7 +1,6 @@
 from copy import deepcopy
 from struct import pack, unpack
 import threading
-import atexit
 from functools import wraps
 from django.utils.decorators import available_attrs
 from django.conf import settings
@@ -32,7 +31,6 @@ def _get_pubcontrol():
 		_pubcontrol = GripPubControl()
 		_pubcontrol.apply_config(getattr(settings, 'PUBLISH_SERVERS', []))
 		_pubcontrol.apply_grip_config(getattr(settings, 'GRIP_PROXIES', []))
-		atexit.register(_pubcontrol.finish)
 	_lock.release()
 	return _pubcontrol
 
