@@ -3,6 +3,7 @@ from struct import pack, unpack
 import threading
 from functools import wraps
 from django.utils.decorators import available_attrs
+from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from pubcontrol import Item
@@ -174,7 +175,7 @@ def websocket_only(view_func):
 	wrapped_view.websocket_only = True
 	return wraps(view_func, assigned=available_attrs(view_func))(wrapped_view)
 
-class GripMiddleware(object):
+class GripMiddleware(MiddlewareMixin):
 	def process_request(self, request):
 		# make sure these are always set
 		request.grip_proxied = False
