@@ -1,25 +1,22 @@
-Django-GRIP
-===========
+# Django-GRIP
+
 Author: Justin Karneges <justin@fanout.io>
 
 GRIP library for Python/Django.
 
-Requirements
-------------
-
-* pubcontrol
-* gripcontrol
-
-Install
--------
+## Install
 
 You can install from PyPi:
 
-    sudo pip install django-grip
+```sh
+sudo pip install django-grip
+```
 
 Or from this repository:
 
-    sudo python setup.py install
+```sh
+sudo python setup.py install
+```
 
 Sample usage
 ------------
@@ -29,25 +26,27 @@ This library comes with a Django middleware class, which you must use. The middl
 Include the middleware in your settings.py:
 
 ```python
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = [
     'django_grip.GripMiddleware',
     ...
-)
+]
 ```
+
+Note: for Django < 1.10 you'll need to set `MIDDLEWARE_CLASSES` instead.
 
 The middleware should be placed as early as possible in the processing order, so that it can collect all response headers and provide them in a hold instruction if necessary.
 
-Additionally, set GRIP_PROXIES:
+Additionally, set `GRIP_PROXIES`:
 
 ```python
-# pushpin and/or fanout.io is used for sending realtime data to clients
+# pushpin and/or fanout cloud is used for sending realtime data to clients
 GRIP_PROXIES = [
     # pushpin
     {
         'key': 'changeme',
         'control_uri': 'http://localhost:5561'
     }
-    # fanout.io
+    # fanout cloud
     #{
     #    'key': b64decode('your-realm-key'),
     #    'control_uri': 'http://api.fanout.io/realm/your-realm',
@@ -56,19 +55,19 @@ GRIP_PROXIES = [
 ]
 ```
 
-If it's possible for clients to access the Django app directly, without necessarily going through the GRIP proxy, then you may want to avoid sending GRIP instructions to those clients. An easy way to achieve this is with the GRIP_PROXY_REQUIRED setting. If set, then any direct requests that trigger a GRIP instruction response will be given a 501 Not Implemented error instead.
+If it's possible for clients to access the Django app directly, without necessarily going through the GRIP proxy, then you may want to avoid sending GRIP instructions to those clients. An easy way to achieve this is with the `GRIP_PROXY_REQUIRED` setting. If set, then any direct requests that trigger a GRIP instruction response will be given a 501 Not Implemented error instead.
 
 ```python
 GRIP_PROXY_REQUIRED = True
 ```
 
-To prepend a fixed string to all channels used for publishing and subscribing, set GRIP_PREFIX in your configuration:
+To prepend a fixed string to all channels used for publishing and subscribing, set `GRIP_PREFIX` in your configuration:
 
 ```python
 GRIP_PREFIX = 'myapp-'
 ```
 
-You can set any other EPCP servers that aren't necessarily proxies with PUBLISH_SERVERS:
+You can set any other EPCP servers that aren't necessarily proxies with `PUBLISH_SERVERS`:
 
 ```python
 PUBLISH_SERVERS = [
@@ -95,7 +94,7 @@ def myendpoint(request):
 
         # subscribe every incoming request to a channel in stream mode
         resp = HttpResponse('[stream open]\n')
-        set_hold_stream(resp, 'test')
+        set_hold_stream(request, 'test')
         return resp
     elif request.method == 'POST':
         # publish data to subscribers
