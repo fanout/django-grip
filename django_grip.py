@@ -4,7 +4,6 @@ import threading
 import six
 from functools import wraps
 from django.utils.decorators import available_attrs
-from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from pubcontrol import Item
