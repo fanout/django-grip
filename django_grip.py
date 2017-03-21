@@ -2,6 +2,7 @@ from copy import deepcopy
 from struct import pack, unpack
 import threading
 from functools import wraps
+import django
 from django.utils.decorators import available_attrs
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -10,6 +11,12 @@ from gripcontrol import Channel, Response, GripPubControl, WebSocketEvent, \
 	validate_sig, create_grip_channel_header, create_hold, \
 	decode_websocket_events, encode_websocket_events, \
 	websocket_control_message
+
+if django.VERSION[0] > 1 or (django.VERSION[0] == 1 and django.VERSION[1] >= 10):
+	from django.utils.deprecation import MiddlewareMixin
+	middleware_parent = MiddlewareMixin
+else:
+	middleware_parent = object
 
 # The PubControl instance and lock used for synchronization.
 _pubcontrol = None
@@ -174,7 +181,7 @@ def websocket_only(view_func):
 	wrapped_view.websocket_only = True
 	return wraps(view_func, assigned=available_attrs(view_func))(wrapped_view)
 
-class GripMiddleware(object):
+class GripMiddleware(middleware_parent):
 	def process_request(self, request):
 		# make sure these are always set
 		request.grip_proxied = False
