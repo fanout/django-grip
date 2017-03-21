@@ -176,7 +176,7 @@ def websocket_only(view_func):
 	wrapped_view.websocket_only = True
 	return wraps(view_func, assigned=available_attrs(view_func))(wrapped_view)
 
-class GripMiddleware(MiddlewareMixin):
+class GripMiddleware(object):
 	def process_request(self, request):
 		# make sure these are always set
 		request.grip_proxied = False
