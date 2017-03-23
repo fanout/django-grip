@@ -1,6 +1,7 @@
 from copy import deepcopy
 from struct import pack, unpack
 import threading
+import six
 from functools import wraps
 import django
 from django.utils.decorators import available_attrs
@@ -234,7 +235,7 @@ class GripMiddleware(middleware_parent):
 		if request.method == 'POST' and ((content_type and content_type == 'application/websocket-events') or (accept_types and 'application/websocket-events' in accept_types)):
 			cid = request.META.get('HTTP_CONNECTION_ID')
 			meta = dict()
-			for k, v in request.META.iteritems():
+			for k, v in six.iteritems(request.META):
 				if k.startswith('HTTP_META_'):
 					meta[_convert_header_name(k[10:])] = v
 			body = request.body
@@ -261,7 +262,7 @@ class GripMiddleware(middleware_parent):
 
 			# meta to remove?
 			meta_remove = set()
-			for k, v in wscontext.orig_meta.iteritems():
+			for k, v in six.iteritems(wscontext.orig_meta):
 				found = False
 				for nk, nv in wscontext.meta:
 					if nk.lower() == k:
@@ -272,7 +273,7 @@ class GripMiddleware(middleware_parent):
 
 			# meta to set?
 			meta_set = dict()
-			for k, v in wscontext.meta.iteritems():
+			for k, v in six.iteritems(wscontext.meta):
 				lname = k.lower()
 				need_set = True
 				for ok, ov in wscontext.orig_meta:
@@ -294,7 +295,7 @@ class GripMiddleware(middleware_parent):
 				response['Sec-WebSocket-Extensions'] = 'grip'
 			for k in meta_remove:
 				response['Set-Meta-' + k] = ''
-			for k, v in meta_set.iteritems():
+			for k, v in six.iteritems(meta_set):
 				response['Set-Meta-' + k] = v
 		else:
 			grip_info = None
