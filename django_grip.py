@@ -1,9 +1,11 @@
 from copy import deepcopy
 from struct import pack, unpack
 import threading
+import six
+import sys
 from functools import wraps
+import django
 from django.utils.decorators import available_attrs
-from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from pubcontrol import Item
@@ -12,9 +14,17 @@ from gripcontrol import Channel, Response, GripPubControl, WebSocketEvent, \
 	decode_websocket_events, encode_websocket_events, \
 	websocket_control_message
 
+if django.VERSION[0] > 1 or (django.VERSION[0] == 1 and django.VERSION[1] >= 10):
+	from django.utils.deprecation import MiddlewareMixin
+
+	middleware_parent = MiddlewareMixin
+else:
+	middleware_parent = object
+
 # The PubControl instance and lock used for synchronization.
 _pubcontrol = None
 _lock = threading.Lock()
+
 
 def _is_basestring_instance(instance):
 	try:
@@ -24,6 +34,7 @@ def _is_basestring_instance(instance):
 		if isinstance(instance, str):
 			return True
 	return False
+
 
 def _get_pubcontrol():
 	global _pubcontrol
@@ -114,9 +125,12 @@ class WebSocketContext(object):
 
 		if e.type == 'TEXT':
 			if e.content:
-				return e.content.decode('utf-8')
+				if sys.version_info[0] >= 3:
+					return e.content
+				else:
+					return e.content.decode('utf-8')
 			else:
-				return u''
+				return ''
 		elif e.type == 'BINARY':
 			if e.content:
 				return e.content
@@ -130,19 +144,28 @@ class WebSocketContext(object):
 			raise IOError('client disconnected unexpectedly')
 
 	def send(self, message):
-		if isinstance(message, unicode):
-			message = message.encode('utf-8')
-		self.out_events.append(WebSocketEvent('TEXT', 'm:' + message))
+		if sys.version_info[0] >= 3:
+			self.out_events.append(WebSocketEvent('TEXT', 'm:' + str(message)))
+		else:
+			if isinstance(message, unicode):
+				message = message.encode('utf-8')
+			self.out_events.append(WebSocketEvent('TEXT', 'm:' + message))
 
 	def send_binary(self, message):
-		if isinstance(message, unicode):
-			message = message.encode('utf-8')
-		self.out_events.append(WebSocketEvent('BINARY', 'm:' + message))
+		if sys.version_info[0] >= 3:
+			self.out_events.append(WebSocketEvent('BINARY', 'm:' +  str(message)))
+		else:
+			if isinstance(message, unicode):
+				message = message.encode('utf-8')
+			self.out_events.append(WebSocketEvent('BINARY', 'm:' + message))
 
 	def send_control(self, message):
-		if isinstance(message, unicode):
-			message = message.encode('utf-8')
-		self.out_events.append(WebSocketEvent('TEXT', 'c:' + message))
+		if sys.version_info[0] >= 3:
+			self.out_events.append(WebSocketEvent('TEXT', 'c:' + str(message)))
+		else:
+			if isinstance(message, unicode):
+				message = message.encode('utf-8')
+			self.out_events.append(WebSocketEvent('TEXT', 'c:' + message))
 
 	def subscribe(self, channel):
 		self.send_control(websocket_control_message(
@@ -175,7 +198,7 @@ def websocket_only(view_func):
 	wrapped_view.websocket_only = True
 	return wraps(view_func, assigned=available_attrs(view_func))(wrapped_view)
 
-class GripMiddleware(MiddlewareMixin):
+class GripMiddleware(middleware_parent):
 	def process_request(self, request):
 		# make sure these are always set
 		request.grip_proxied = False
@@ -228,11 +251,16 @@ class GripMiddleware(MiddlewareMixin):
 		if request.method == 'POST' and ((content_type and content_type == 'application/websocket-events') or (accept_types and 'application/websocket-events' in accept_types)):
 			cid = request.META.get('HTTP_CONNECTION_ID')
 			meta = dict()
-			for k, v in request.META.iteritems():
+			for k, v in six.iteritems(request.META):
 				if k.startswith('HTTP_META_'):
 					meta[_convert_header_name(k[10:])] = v
 			body = request.body
-			assert(not isinstance(body, unicode))
+
+			if sys.version_info[0] >= 3:
+				body = body.decode('utf-8')
+			else:
+				assert(not isinstance(body, unicode))
+
 			try:
 				events = decode_websocket_events(body)
 			except:
@@ -255,7 +283,7 @@ class GripMiddleware(MiddlewareMixin):
 
 			# meta to remove?
 			meta_remove = set()
-			for k, v in wscontext.orig_meta.iteritems():
+			for k, v in six.iteritems(wscontext.orig_meta):
 				found = False
 				for nk, nv in wscontext.meta:
 					if nk.lower() == k:
@@ -266,7 +294,7 @@ class GripMiddleware(MiddlewareMixin):
 
 			# meta to set?
 			meta_set = dict()
-			for k, v in wscontext.meta.iteritems():
+			for k, v in six.iteritems(wscontext.meta):
 				lname = k.lower()
 				need_set = True
 				for ok, ov in wscontext.orig_meta:
@@ -288,7 +316,7 @@ class GripMiddleware(MiddlewareMixin):
 				response['Sec-WebSocket-Extensions'] = 'grip'
 			for k in meta_remove:
 				response['Set-Meta-' + k] = ''
-			for k, v in meta_set.iteritems():
+			for k, v in six.iteritems(meta_set):
 				response['Set-Meta-' + k] = v
 		else:
 			grip_info = None
