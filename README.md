@@ -9,13 +9,13 @@ GRIP library for Python/Django.
 You can install from PyPi:
 
 ```sh
-sudo pip install django-grip
+pip install django-grip
 ```
 
 Or from this repository:
 
 ```sh
-sudo python setup.py install
+python setup.py install
 ```
 
 Sample usage
@@ -43,16 +43,21 @@ Additionally, set `GRIP_PROXIES`:
 GRIP_PROXIES = [
     # pushpin
     {
-        'key': 'changeme',
         'control_uri': 'http://localhost:5561'
-    }
+    },
     # fanout cloud
-    #{
-    #    'key': b64decode('your-realm-key'),
-    #    'control_uri': 'http://api.fanout.io/realm/your-realm',
-    #    'control_iss': 'your-realm'
-    #}
+    {
+        'key': b64decode('your-realm-key'),
+        'control_uri': 'http://api.fanout.io/realm/your-realm',
+        'control_iss': 'your-realm'
+    }
 ]
+```
+
+Alternatively, you can use `GRIP_URL` to configure a single proxy from a string:
+
+```python
+GRIP_URL = 'http://api.fanout.io/realm/your-realm?iss=your-realm&key=base64:your-realm-key'
 ```
 
 If it's possible for clients to access the Django app directly, without necessarily going through the GRIP proxy, then you may want to avoid sending GRIP instructions to those clients. An easy way to achieve this is with the `GRIP_PROXY_REQUIRED` setting. If set, then any direct requests that trigger a GRIP instruction response will be given a 501 Not Implemented error instead.
