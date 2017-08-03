@@ -275,7 +275,12 @@ class GripMiddleware(middleware_parent):
 				if k.startswith('HTTP_META_'):
 					meta[_convert_header_name(k[10:])] = v
 			body = request.body
-			assert(not _is_basestring_instance(body))
+			if is_python3:
+				if isinstance(body, str):
+					body = body.encode('utf-8')
+			else:
+				if isinstance(body, unicode):
+					body = body.encode('utf-8')
 			try:
 				events = decode_websocket_events(body)
 			except:
