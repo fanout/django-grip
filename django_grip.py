@@ -35,16 +35,20 @@ def _is_basestring_instance(instance):
 			return True
 	return False
 
+def _get_proxies():
+	proxies = getattr(settings, 'GRIP_PROXIES', [])
+	grip_url = getattr(settings, 'GRIP_URL', None)
+	if grip_url:
+		proxies.append(parse_grip_uri(grip_url))
+	return proxies
+
 def _get_pubcontrol():
 	global _pubcontrol
 	_lock.acquire()
 	if _pubcontrol is None:
 		_pubcontrol = GripPubControl()
 		_pubcontrol.apply_config(getattr(settings, 'PUBLISH_SERVERS', []))
-		_pubcontrol.apply_grip_config(getattr(settings, 'GRIP_PROXIES', []))
-		grip_url = getattr(settings, 'GRIP_URL', None)
-		if grip_url:
-			_pubcontrol.apply_grip_config(parse_grip_uri(grip_url))
+		_pubcontrol.apply_grip_config(_get_proxies())
 	_lock.release()
 	return _pubcontrol
 
@@ -230,7 +234,7 @@ class GripMiddleware(middleware_parent):
 
 		grip_sig_header = request.META.get('HTTP_GRIP_SIG')
 		if grip_sig_header:
-			proxies = getattr(settings, 'GRIP_PROXIES', [])
+			proxies = _get_proxies()
 
 			all_proxies_have_keys = True
 			for entry in proxies:
