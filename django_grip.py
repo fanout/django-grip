@@ -1,6 +1,8 @@
+import sys
 from copy import deepcopy
 from struct import pack, unpack
 import threading
+import six
 from functools import wraps
 import django
 from django.utils.decorators import available_attrs
@@ -11,6 +13,8 @@ from gripcontrol import Channel, Response, GripPubControl, WebSocketEvent, \
 	parse_grip_uri, validate_sig, create_grip_channel_header, create_hold, \
 	decode_websocket_events, encode_websocket_events, \
 	websocket_control_message
+
+is_python3 = sys.version_info >= (3,)
 
 if django.VERSION[0] > 1 or (django.VERSION[0] == 1 and django.VERSION[1] >= 10):
 	from django.utils.deprecation import MiddlewareMixin
@@ -131,12 +135,18 @@ class WebSocketContext(object):
 			if e.content:
 				return e.content.decode('utf-8')
 			else:
-				return u''
+				if is_python3:
+					return ''
+				else:
+					return u''
 		elif e.type == 'BINARY':
 			if e.content:
 				return e.content
 			else:
-				return ''
+				if is_python3:
+					return b''
+				else:
+					return ''
 		elif e.type == 'CLOSE':
 			if e.content and len(e.content) == 2:
 				self.close_code = unpack('>H', e.content)[0]
@@ -145,19 +155,37 @@ class WebSocketContext(object):
 			raise IOError('client disconnected unexpectedly')
 
 	def send(self, message):
-		if isinstance(message, unicode):
-			message = message.encode('utf-8')
-		self.out_events.append(WebSocketEvent('TEXT', 'm:' + message))
+		if is_python3:
+			if isinstance(message, str):
+				message = message.encode('utf-8')
+			content = b'm:' + message
+		else:
+			if isinstance(message, unicode):
+				message = message.encode('utf-8')
+			content = 'm:' + message
+		self.out_events.append(WebSocketEvent('TEXT', content))
 
 	def send_binary(self, message):
-		if isinstance(message, unicode):
-			message = message.encode('utf-8')
-		self.out_events.append(WebSocketEvent('BINARY', 'm:' + message))
+		if is_python3:
+			if isinstance(message, str):
+				message = message.encode('utf-8')
+			content = b'm:' + message
+		else:
+			if isinstance(message, unicode):
+				message = message.encode('utf-8')
+			content = 'm:' + message
+		self.out_events.append(WebSocketEvent('BINARY', content))
 
 	def send_control(self, message):
-		if isinstance(message, unicode):
-			message = message.encode('utf-8')
-		self.out_events.append(WebSocketEvent('TEXT', 'c:' + message))
+		if is_python3:
+			if isinstance(message, str):
+				message = message.encode('utf-8')
+			content = b'c:' + message
+		else:
+			if isinstance(message, unicode):
+				message = message.encode('utf-8')
+			content = 'c:' + message
+		self.out_events.append(WebSocketEvent('TEXT', content))
 
 	def subscribe(self, channel):
 		self.send_control(websocket_control_message(
@@ -243,11 +271,11 @@ class GripMiddleware(middleware_parent):
 		if request.method == 'POST' and ((content_type and content_type == 'application/websocket-events') or (accept_types and 'application/websocket-events' in accept_types)):
 			cid = request.META.get('HTTP_CONNECTION_ID')
 			meta = dict()
-			for k, v in request.META.iteritems():
+			for k, v in six.iteritems(request.META):
 				if k.startswith('HTTP_META_'):
 					meta[_convert_header_name(k[10:])] = v
 			body = request.body
-			assert(not isinstance(body, unicode))
+			assert(not _is_basestring_instance(body))
 			try:
 				events = decode_websocket_events(body)
 			except:
@@ -270,7 +298,7 @@ class GripMiddleware(middleware_parent):
 
 			# meta to remove?
 			meta_remove = set()
-			for k, v in wscontext.orig_meta.iteritems():
+			for k, v in six.iteritems(wscontext.orig_meta):
 				found = False
 				for nk, nv in wscontext.meta:
 					if nk.lower() == k:
@@ -281,7 +309,7 @@ class GripMiddleware(middleware_parent):
 
 			# meta to set?
 			meta_set = dict()
-			for k, v in wscontext.meta.iteritems():
+			for k, v in six.iteritems(wscontext.meta):
 				lname = k.lower()
 				need_set = True
 				for ok, ov in wscontext.orig_meta:
@@ -303,7 +331,7 @@ class GripMiddleware(middleware_parent):
 				response['Sec-WebSocket-Extensions'] = 'grip'
 			for k in meta_remove:
 				response['Set-Meta-' + k] = ''
-			for k, v in meta_set.iteritems():
+			for k, v in six.iteritems(meta_set):
 				response['Set-Meta-' + k] = v
 		else:
 			grip_info = None
@@ -332,7 +360,7 @@ class GripMiddleware(middleware_parent):
 				#   using body instructions instead.
 				if response.status_code == 304:
 					headers = list()
-					for k, v in response.items():
+					for k, v in list(response.items()):
 						headers.append([k, v])
 					iresponse = Response(
 						code=response.status_code,
