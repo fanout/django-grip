@@ -8,7 +8,7 @@ from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from pubcontrol import Item
 from gripcontrol import Channel, Response, GripPubControl, WebSocketEvent, \
-	validate_sig, create_grip_channel_header, create_hold, \
+	parse_grip_uri, validate_sig, create_grip_channel_header, create_hold, \
 	decode_websocket_events, encode_websocket_events, \
 	websocket_control_message
 
@@ -38,8 +38,14 @@ def _get_pubcontrol():
 		_pubcontrol = GripPubControl()
 		_pubcontrol.apply_config(getattr(settings, 'PUBLISH_SERVERS', []))
 		_pubcontrol.apply_grip_config(getattr(settings, 'GRIP_PROXIES', []))
+		grip_url = getattr(settings, 'GRIP_URL', None)
+		if grip_url:
+			_pubcontrol.apply_grip_config(parse_grip_uri(grip_url))
 	_lock.release()
 	return _pubcontrol
+
+# create the pubcontrol object right away for require_subscribers
+_get_pubcontrol()
 
 def _get_prefix():
 	return getattr(settings, 'GRIP_PREFIX', '')
@@ -56,10 +62,13 @@ def _convert_channels(channels):
 		out.append(c)
 	return out
 
-def publish(channel, formats, id=None, prev_id=None, blocking=False, callback=None):
+def get_pubcontrol():
+	return _get_pubcontrol()
+
+def publish(channel, formats, id=None, prev_id=None, blocking=False, callback=None, meta={}):
 	pub = _get_pubcontrol()
 	pub.publish(_get_prefix() + channel,
-		Item(formats, id=id, prev_id=prev_id),
+		Item(formats, id=id, prev_id=prev_id, meta=meta),
 		blocking=blocking,
 		callback=callback)
 
