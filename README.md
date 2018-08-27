@@ -1,29 +1,18 @@
-# Django-GRIP
+# Django GRIP
 
 Author: Justin Karneges <justin@fanout.io>
 
-GRIP library for Python/Django.
+This library helps your Django application delegate long-lived HTTP/WebSocket connection management to a GRIP-compatible proxy such as [Fanout Cloud](https://fanout.io/) or [Pushpin](https://pushpin.org/).
 
-## Install
+## Setup
 
-You can install from PyPi:
+First, install this module:
 
 ```sh
 pip install django-grip
 ```
 
-Or from this repository:
-
-```sh
-python setup.py install
-```
-
-Sample usage
-------------
-
-This library comes with a Django middleware class, which you must use. The middleware will parse the Grip-Sig header in any requests to detect if they came from a GRIP proxy, and it will apply any hold instructions when responding. Additionally, the middleware handles WebSocket-Over-HTTP processing so that WebSockets managed by the GRIP proxy can be controlled via HTTP responses from the Django application.
-
-Include the middleware in your settings.py:
+In your `settings.py`, add the `GripMiddleware`:
 
 ```python
 MIDDLEWARE = [
@@ -32,59 +21,23 @@ MIDDLEWARE = [
 ]
 ```
 
-Note: for Django < 1.10 you'll need to set `MIDDLEWARE_CLASSES` instead.
+The middleware handles parsing/generating GRIP headers and WebSocket-Over-HTTP events. It should be placed early in the stack.
 
-The middleware should be placed as early as possible in the processing order, so that it can collect all response headers and provide them in a hold instruction if necessary.
-
-Additionally, set `GRIP_PROXIES`:
+Additionally, set `GRIP_URL` with your proxy settings, e.g.:
 
 ```python
-# pushpin and/or fanout cloud is used for sending realtime data to clients
-GRIP_PROXIES = [
-    # pushpin
-    {
-        'control_uri': 'http://localhost:5561'
-    },
-    # fanout cloud
-    {
-        'key': b64decode('your-realm-key'),
-        'control_uri': 'http://api.fanout.io/realm/your-realm',
-        'control_iss': 'your-realm'
-    }
-]
-```
-
-Alternatively, you can use `GRIP_URL` to configure a single proxy from a string:
-
-```python
+# fanout cloud
 GRIP_URL = 'http://api.fanout.io/realm/your-realm?iss=your-realm&key=base64:your-realm-key'
 ```
 
-If it's possible for clients to access the Django app directly, without necessarily going through the GRIP proxy, then you may want to avoid sending GRIP instructions to those clients. An easy way to achieve this is with the `GRIP_PROXY_REQUIRED` setting. If set, then any direct requests that trigger a GRIP instruction response will be given a 501 Not Implemented error instead.
-
 ```python
-GRIP_PROXY_REQUIRED = True
+# pushpin
+GRIP_URL = 'http://localhost:5561'
 ```
 
-To prepend a fixed string to all channels used for publishing and subscribing, set `GRIP_PREFIX` in your configuration:
+## Usage
 
-```python
-GRIP_PREFIX = 'myapp-'
-```
-
-You can set any other EPCP servers that aren't necessarily proxies with `PUBLISH_SERVERS`:
-
-```python
-PUBLISH_SERVERS = [
-    {
-        'uri': 'http://example.com/base-uri',
-        'iss': 'your-iss',
-        'key': 'your-key'
-    }
-]
-```
-
-Example view:
+### HTTP streaming
 
 ```python
 from django.http import HttpResponse, HttpResponseNotAllowed
@@ -98,7 +51,7 @@ def myendpoint(request):
             return HttpResponse('Not Implemented\n', status=501)
 
         # subscribe every incoming request to a channel in stream mode
-        resp = HttpResponse('[stream open]\n')
+        resp = HttpResponse('[stream open]\n', content_type='text/plain')
         set_hold_stream(request, 'test')
         return resp
     elif request.method == 'POST':
@@ -110,7 +63,48 @@ def myendpoint(request):
         return HttpResponseNotAllowed(['GET', 'POST'])
 ```
 
-Stateless WebSocket echo service with broadcast endpoint:
+### HTTP long-polling
+
+```python
+from django.http import HttpResponse, HttpResponseNotModified, HttpResponseNotAllowed
+from gripcontrol import HttpResponseFormat
+from django_grip import set_hold_response, publish
+
+def myendpoint(request):
+    if request.method == 'GET':
+        # get object and its etag
+        obj = ...
+        etag = ...
+
+        # if object is unchanged, long-poll, else return object
+        inm = request.META.get('HTTP_IF_NONE_MATCH')
+        if inm == etag:
+            # subscribe request to channel, return status 304 after timeout
+            resp = HttpResponseNotModified()
+            set_hold_longpoll(request, 'test')
+        else:
+            resp = HttpResponse(obj.serialize())
+
+        resp['ETag'] = etag
+        return resp
+    elif request.method == 'POST':
+        data = request.POST['data']
+
+        # update object based on request, and get resulting object and its etag
+        obj = ...
+        etag = ...
+
+        # publish data to subscribers
+        headers = {'ETag': etag}
+        publish('test', HttpResponseFormat(obj.serialize(), headers=headers))
+        return HttpResponse('Ok\n')
+    else:
+        return HttpResponseNotAllowed(['GET', 'POST'])
+```
+
+### WebSockets
+
+Here's an echo service with a broadcast endpoint:
 
 ```python
 from django.http import HttpResponse, HttpResponseNotAllowed
@@ -150,4 +144,35 @@ def broadcast(request):
         return HttpResponse('Ok\n')
     else:
         return HttpResponseNotAllowed(['POST'])
+```
+
+## Advanced settings
+
+If you need to communicate with more than one GRIP proxy (e.g. multiple Pushpin instances, or Fanout Cloud + Pushpin), you can use `GRIP_PROXIES` instead of `GRIP_URL`. For example:
+
+```python
+GRIP_PROXIES = [
+    # pushpin
+    {
+        'control_uri': 'http://localhost:5561'
+    },
+    # fanout cloud
+    {
+        'key': b64decode('your-realm-key'),
+        'control_uri': 'http://api.fanout.io/realm/your-realm',
+        'control_iss': 'your-realm'
+    }
+]
+```
+
+If it's possible for clients to access the Django app directly, without necessarily going through a GRIP proxy, then you may want to avoid sending GRIP instructions to those clients. An easy way to achieve this is with the `GRIP_PROXY_REQUIRED` setting. If set, then any direct requests that trigger a GRIP instruction response will be given a 501 Not Implemented error instead.
+
+```python
+GRIP_PROXY_REQUIRED = True
+```
+
+To prepend a fixed string to all channels used for publishing and subscribing, set `GRIP_PREFIX` in your configuration:
+
+```python
+GRIP_PREFIX = 'myapp-'
 ```
