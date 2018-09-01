@@ -121,14 +121,16 @@ def _escape_param(s):
 	return out
 
 def _cstring_encode(s):
+	if not isinstance(s, six.text_type):
+		s = s.decode('utf-8')
 	out = ''
 	for c in s:
-		if c == '\n':
-			out += '\\n'
-		elif c == '\r':
+		if c == '\\':
+			out += '\\\\'
+		if c == '\r':
 			out += '\\r'
-		elif c == '\t':
-			out += '\\t'
+		elif c == '\n':
+			out += '\\n'
 		elif ord(c) < 0x20:
 			raise ValueError('not cstring encodable')
 		else:
@@ -139,7 +141,7 @@ def _keep_alive_header(data, timeout):
 	try:
 		cs = _cstring_encode(data)
 		hvalue = '%s; format=cstring' % cs
-	except ValueError:
+	except Exception:
 		hvalue = '%s; format=base64' % b64encode(data)
 
 	hvalue += '; timeout=%d' % timeout
