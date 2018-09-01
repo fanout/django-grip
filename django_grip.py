@@ -65,7 +65,7 @@ class GripInstruct(object):
 	def set_hold_stream(self):
 		self.hold = 'stream'
 
-	def set_keep_alive(self, data, timeout=20):
+	def set_keep_alive(self, data, timeout):
 		self.keep_alive = data
 		self.keep_alive_timeout = int(timeout)
 
@@ -175,6 +175,9 @@ def set_hold_stream(request, channels, keep_alive_data=None,
 	instruct.add_channels(channels)
 	instruct.set_hold_stream()
 	if keep_alive_data:
+		if not keep_alive_timeout:
+			raise ValueError('if keep_alive_data is set, then '
+					'keep_alive_timeout must also be set')
 		instruct.set_keep_alive(keep_alive_data, timeout=keep_alive_timeout)
 
 def _convert_header_name(name):
