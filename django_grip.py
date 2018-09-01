@@ -34,7 +34,7 @@ def _is_basestring_instance(instance):
 			return True
 	return False
 
-class GripResponse(object):
+class GripInstruct(object):
 	def __init__(self):
 		self.hold = ''
 		self.channels = []
@@ -43,10 +43,36 @@ class GripResponse(object):
 		self.keep_alive_timeout = 0
 		self.next_link = ''
 		self.next_link_timeout = 0
-		self.meta = {}
+		self.meta = {} # modify directly
 
-	def is_empty(self):
-		return (not self.hold and not self.next_link)
+	def add_channel(self, channel):
+		if _is_basestring_instance(channel):
+			channel = Channel(channel)
+		assert(isinstance(channel, Channel))
+		self.channels.append(channel)
+
+	def add_channels(self, channels):
+		if isinstance(channels, Channel) or _is_basestring_instance(channels):
+			channels = [channels]
+		for c in channels:
+			self.add_channel(c)
+
+	def set_hold_longpoll(self, timeout=None):
+		self.hold = 'response'
+		if timeout:
+			self.timeout = int(timeout)
+
+	def set_hold_stream(self):
+		self.hold = 'stream'
+
+	def set_keep_alive(self, data, timeout=20):
+		self.keep_alive = data
+		self.keep_alive_timeout = int(timeout)
+
+	def set_next_link(self, uri, timeout=None):
+		self.next_link = uri
+		if timeout:
+			self.next_link_timeout = int(timeout)
 
 class GripData(object):
 	def __init__(self):
@@ -54,7 +80,14 @@ class GripData(object):
 		self.signed = False
 		self.features = set()
 		self.last = {}
-		self.response = GripResponse()
+		self.instruct = None
+
+	def start_instruct(self):
+		if self.instruct:
+			raise ValueError('GRIP instruct already started')
+
+		self.instruct = GripInstruct()
+		return self.instruct
 
 def _get_proxies():
 	proxies = getattr(settings, 'GRIP_PROXIES', [])
@@ -77,18 +110,6 @@ _get_pubcontrol()
 
 def _get_prefix():
 	return getattr(settings, 'GRIP_PREFIX', '')
-
-# convert input to list of Channel objects
-def _convert_channels(channels):
-	if isinstance(channels, Channel) or _is_basestring_instance(channels):
-		channels = [channels]
-	out = []
-	for c in channels:
-		if _is_basestring_instance(c):
-			c = Channel(c)
-		assert(isinstance(c, Channel))
-		out.append(c)
-	return out
 
 def _escape_param(s):
 	out = ''
@@ -144,39 +165,17 @@ def publish(channel, formats, id=None, prev_id=None, blocking=False,
 		callback=callback)
 
 def set_hold_longpoll(request, channels, timeout=None):
-	gresp = request.grip.response
-	gresp.hold = 'response'
-	gresp.channels = _convert_channels(channels)
-	if timeout:
-		gresp.timeout = int(timeout)
+	instruct = request.grip.start_instruct()
+	instruct.add_channels(channels)
+	instruct.set_hold_longpoll(timeout=timeout)
 
-# as a special case, channels can be None to not set channels, if they
-#   were already set earlier by set_channels()
-def set_hold_stream(request, channels):
-	gresp = request.grip.response
-	gresp.hold = 'stream'
-	if channels is not None:
-		gresp.channels = _convert_channels(channels)
-
-def set_keep_alive(request, data, timeout=20):
-	gresp = request.grip.response
-	gresp.keep_alive = data
-	gresp.keep_alive_timeout = int(timeout)
-
-def set_sub_meta(request, name, value):
-	gresp = request.grip.response
-	gresp.meta[name] = value
-
-def set_next_link(request, uri, timeout=None):
-	gresp = request.grip.response
-	gresp.next_link = uri
-	if timeout:
-		gresp.next_link_timeout = int(timeout)
-
-# use this to set channel filters without necessarily having subscriptions
-def set_channels(request, channels):
-	gresp = request.grip.response
-	gresp.channels = _convert_channels(channels)
+def set_hold_stream(request, channels, keep_alive_data=None,
+		keep_alive_timeout=None):
+	instruct = request.grip.start_instruct()
+	instruct.add_channels(channels)
+	instruct.set_hold_stream()
+	if keep_alive_data:
+		instruct.set_keep_alive(keep_alive_data, timeout=keep_alive_timeout)
 
 def _convert_header_name(name):
 	out = ''
@@ -354,47 +353,51 @@ class GripMiddleware(middleware_parent):
 			for k, v in six.iteritems(meta_set):
 				response['Set-Meta-' + k] = v
 		else:
-			gresp = request.grip.response
+			instruct = request.grip.instruct
 
-			if (not gresp.is_empty() and not request.grip.proxied and
-					getattr(settings, 'GRIP_PROXY_REQUIRED', False)):
-				return HttpResponse('Not Implemented\n', status=501)
+			if instruct:
+				if (not request.grip.proxied and
+						getattr(settings, 'GRIP_PROXY_REQUIRED', False)):
+					return HttpResponse('Not Implemented\n', status=501)
 
-			if gresp.hold:
+				if instruct.hold:
+					# code 304 only allows certain headers. if the webserver
+					#   strictly enforces this, then we won't be able to use
+					#   Grip- headers to talk to the proxy. switch to code
+					#   200 and use Grip-Status to specify intended status
+					if response.status_code == 304:
+						response.status_code = 200
+						response.reason_phrase = 'OK'
+						response['Grip-Status'] = '304'
+
+					response['Grip-Hold'] = instruct.hold
+
 				# apply prefix to channels if needed
 				prefix = _get_prefix()
 				if prefix:
-					for c in gresp.channels:
+					for c in instruct.channels:
 						c.name = prefix + c.name
 
-				# code 304 only allows certain headers. if the webserver
-				#   strictly enforces this, then we won't be able to use
-				#   Grip- headers to talk to the proxy. switch to code 200
-				#   and use Grip-Status to specify intended status
-				if response.status_code == 304:
-					response.status_code = 200
-					response.reason_phrase = 'OK'
-					response['Grip-Status'] = '304'
-
-				response['Grip-Hold'] = gresp.hold
-
 				response['Grip-Channel'] = create_grip_channel_header(
-						gresp.channels)
+						instruct.channels)
 
-				if gresp.timeout > 0:
-					response['Grip-Timeout'] = str(gresp.timeout)
+				if instruct.hold:
+					if instruct.timeout > 0:
+						response['Grip-Timeout'] = str(instruct.timeout)
 
-				if gresp.keep_alive:
-					response['Grip-Keep-Alive'] = _keep_alive_header(
-						gresp.keep_alive, gresp.keep_alive_timeout)
+					if instruct.keep_alive:
+						response['Grip-Keep-Alive'] = _keep_alive_header(
+								instruct.keep_alive,
+								instruct.keep_alive_timeout)
 
-				if gresp.meta:
-					response['Grip-Set-Meta'] = _set_meta_header(gresp.meta)
+					if instruct.meta:
+						response['Grip-Set-Meta'] = _set_meta_header(
+								instruct.meta)
 
-			if gresp.next_link:
-				hvalue = '<%s>; rel=next' % gresp.next_link
-				if gresp.next_link_timeout > 0:
-					hvalue += '; timeout=%d' % gresp.next_link_timeout
-				response['Grip-Link'] = hvalue
+				if instruct.next_link:
+					hvalue = '<%s>; rel=next' % instruct.next_link
+					if instruct.next_link_timeout > 0:
+						hvalue += '; timeout=%d' % instruct.next_link_timeout
+					response['Grip-Link'] = hvalue
 
 		return response
