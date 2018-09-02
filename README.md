@@ -146,6 +146,10 @@ def broadcast(request):
         return HttpResponseNotAllowed(['POST'])
 ```
 
+The `while` loop is deceptive. It looks like it's looping for the lifetime of the WebSocket connection, but what it's really doing is looping through a batch of WebSocket messages that was just received via HTTP. Often this will be one message, and so the loop performs one iteration and then exits. Similarly, the `ws` object only exists for the duration of the handler invocation, rather than for the lifetime of the connection as you might expect. It may look like socket code, but it's all an illusion. :tophat:
+
+For details on the underlying protocol conversion, see the [WebSocket-Over-HTTP Protocol spec](http://pushpin.org/docs/protocols/websocket-over-http/).
+
 ## Advanced settings
 
 If you need to communicate with more than one GRIP proxy (e.g. multiple Pushpin instances, or Fanout Cloud + Pushpin), you can use `GRIP_PROXIES` instead of `GRIP_URL`. For example:
