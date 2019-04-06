@@ -258,11 +258,7 @@ class GripMiddleware(middleware_parent):
 			for n in range(0, len(parsed), 2):
 				channel = parsed[n]
 				params = parsed[n + 1]
-				last_id = params.get('last-id')
-				if last_id is None:
-					raise ValueError(
-							'channel "%s" has no last-id param' % channel)
-				last[channel] = last_id
+				last[channel] = params.get('last-id', '')
 
 			request.grip.last = last
 
