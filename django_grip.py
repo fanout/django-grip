@@ -2,10 +2,9 @@ from base64 import b64encode
 from struct import pack
 import threading
 import six
-from functools import wraps
+from functools import WRAPPER_ASSIGNMENTS, wraps
 from werkzeug.http import parse_options_header
 import django
-from django.utils.decorators import available_attrs
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from pubcontrol import Item
@@ -200,7 +199,7 @@ def websocket_only(view_func):
 		return response
 
 	wrapped_view.websocket_only = True
-	return wraps(view_func, assigned=available_attrs(view_func))(wrapped_view)
+	return wraps(view_func, assigned=WRAPPER_ASSIGNMENTS)(wrapped_view)
 
 class GripMiddleware(middleware_parent):
 	def process_request(self, request):
