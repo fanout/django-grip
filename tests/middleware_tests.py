@@ -1,6 +1,7 @@
 import sys
 import unittest
 import six
+import django
 from django.conf import settings
 from django.http import HttpResponse
 settings.configure()
@@ -9,13 +10,21 @@ sys.path.append('../')
 from gripcontrol import Channel
 from django_grip import GripMiddleware
 
+def dummy_get_response(request):
+	return None
+
+
 class MockRequest(object):
 	def __init__(self):
 		pass
 
 class TestMiddleware(unittest.TestCase):
 	def test_hold(self):
-		m = GripMiddleware()
+		if django.VERSION[0] >= 4:
+			m = GripMiddleware(dummy_get_response)
+		else:
+			m = GripMiddleware()
+
 
 		req = MockRequest()
 		req.method = 'GET'
@@ -43,7 +52,10 @@ class TestMiddleware(unittest.TestCase):
 		self.assertEqual(resp['Grip-Keep-Alive'], 'keepalive\\n; format=cstring; timeout=25')
 
 	def test_wscontext(self):
-		m = GripMiddleware()
+		if django.VERSION[0] >= 4:
+			m = GripMiddleware(dummy_get_response)
+		else:
+			m = GripMiddleware()
 
 		req = MockRequest()
 		req.method = 'GET'
@@ -80,7 +92,10 @@ class TestMiddleware(unittest.TestCase):
 		self.assertEqual(resp['Content-Type'], 'application/websocket-events')
 
 	def test_meta(self):
-		m = GripMiddleware()
+		if django.VERSION[0] >= 4:
+			m = GripMiddleware(dummy_get_response)
+		else:
+			m = GripMiddleware()
 
 		req = MockRequest()
 		req.method = 'POST'
