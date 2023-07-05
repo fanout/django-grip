@@ -93,6 +93,13 @@ def _get_proxies():
 	grip_url = getattr(settings, 'GRIP_URL', None)
 	if grip_url:
 		proxies.append(parse_grip_uri(grip_url))
+
+	verify_key = getattr(settings, 'GRIP_VERIFY_KEY', None)
+	if verify_key:
+		for p in proxies:
+			if 'verify_key' not in p:
+				p['verify_key'] = verify_key
+
 	return proxies
 
 def _get_pubcontrol():
