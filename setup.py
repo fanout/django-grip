@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
 name='django-grip',
-version='3.3.0',
+version='3.4.0',
 description='Django GRIP library',
 author='Justin Karneges',
 author_email='justin@fanout.io',
