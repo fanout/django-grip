@@ -2,7 +2,7 @@
 
 Author: Justin Karneges <justin@fanout.io>
 
-This library helps your Django application delegate long-lived HTTP/WebSocket connection management to a GRIP-compatible proxy such as [Fanout Cloud](https://fanout.io/) or [Pushpin](https://pushpin.org/).
+This library helps your Django application delegate long-lived HTTP/WebSocket connection management to a GRIP-compatible proxy such as [Pushpin](https://pushpin.org/) or [Fastly Fanout](https://fanout.io/).
 
 ## Setup
 
@@ -26,13 +26,17 @@ The middleware handles parsing/generating GRIP headers and WebSocket-Over-HTTP e
 Additionally, set `GRIP_URL` with your proxy settings, e.g.:
 
 ```python
-# fanout cloud
-GRIP_URL = 'http://api.fanout.io/realm/your-realm?iss=your-realm&key=base64:your-realm-key'
+# pushpin
+GRIP_URL = 'http://localhost:5561'
 ```
 
 ```python
-# pushpin
-GRIP_URL = 'http://localhost:5561'
+# fastly
+GRIP_VERIFY_KEY = """
+[ ... public key ... ]
+"""
+
+GRIP_URL = 'https://api.fastly.com/service/your-service-id?verify-iss=fastly:your-service-id&key=your-api-token'
 ```
 
 ## Usage
@@ -152,7 +156,7 @@ For details on the underlying protocol conversion, see the [WebSocket-Over-HTTP 
 
 ## Advanced settings
 
-If you need to communicate with more than one GRIP proxy (e.g. multiple Pushpin instances, or Fanout Cloud + Pushpin), you can use `GRIP_PROXIES` instead of `GRIP_URL`. For example:
+If you need to communicate with more than one GRIP proxy (e.g. multiple Pushpin instances, or Fastly Fanout + Pushpin), you can use `GRIP_PROXIES` instead of `GRIP_URL`. For example:
 
 ```python
 GRIP_PROXIES = [
@@ -160,11 +164,11 @@ GRIP_PROXIES = [
     {
         'control_uri': 'http://localhost:5561'
     },
-    # fanout cloud
+    # fastly
     {
-        'key': b64decode('your-realm-key'),
-        'control_uri': 'http://api.fanout.io/realm/your-realm',
-        'control_iss': 'your-realm'
+        'control_uri': 'https://api.fastly.com/service/your-service-id',
+        'key': 'your-api-token',
+        'verify_iss': 'fastly:your-service-id'
     }
 ]
 ```
