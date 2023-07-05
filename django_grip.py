@@ -220,7 +220,7 @@ class GripMiddleware(middleware_parent):
 
 			all_proxies_have_keys = True
 			for entry in proxies:
-				if 'key' not in entry:
+				if 'verify_key' not in entry and 'key' not in entry:
 					all_proxies_have_keys = False
 					break
 
@@ -229,7 +229,8 @@ class GripMiddleware(middleware_parent):
 				#   consider the request to be proxied unless
 				#   one of them signed it
 				for entry in proxies:
-					if validate_sig(grip_sig_header, entry['key']):
+					key = entry.get('verify_key', entry['key'])
+					if validate_sig(grip_sig_header, key, iss=entry.get('verify_iss')):
 						proxied = True
 						signed = True
 						break
