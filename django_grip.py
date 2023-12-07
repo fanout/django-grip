@@ -250,21 +250,17 @@ class GripMiddleware(middleware_parent):
 		# parse Grip-Feature
 		hvalue = request.META.get('HTTP_GRIP_FEATURE')
 		if hvalue:
-			parsed = parse_options_header(hvalue)
+			parsed = hvalue.split(", ")
 			features = set()
-			for n in range(0, len(parsed), 2):
-				features.add(parsed[n])
+			features.update(parsed)
 			request.grip.features = features
 
 		# parse Grip-Last
 		hvalue = request.META.get('HTTP_GRIP_LAST')
 		if hvalue:
-			parsed = parse_options_header(hvalue)
-
 			last = {}
-			for n in range(0, len(parsed), 2):
-				channel = parsed[n]
-				params = parsed[n + 1]
+			for hval in hvalue.split(","):
+				channel, params = parse_options_header(hval)
 				last[channel] = params.get('last-id', '')
 
 			request.grip.last = last
