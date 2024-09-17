@@ -394,9 +394,9 @@ class GripMiddleware(middleware_parent):
 								instruct.keep_alive,
 								instruct.keep_alive_timeout)
 
-					if instruct.meta:
-						response['Grip-Set-Meta'] = _set_meta_header(
-								instruct.meta)
+				if instruct.meta:
+					response['Grip-Set-Meta'] = _set_meta_header(
+							instruct.meta)
 
 				if instruct.next_link:
 					hvalue = '<%s>; rel=next' % instruct.next_link
