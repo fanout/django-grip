@@ -50,6 +50,35 @@ class TestMiddleware(unittest.TestCase):
 		self.assertEqual(resp['Grip-Channel'], 'apple, banana; prev-id=1')
 		self.assertEqual(resp['Grip-Link'], '</endpoint>; rel=next')
 		self.assertEqual(resp['Grip-Keep-Alive'], 'keepalive\\n; format=cstring; timeout=25')
+  
+	def test_not_hold(self):
+		if django.VERSION[0] >= 4:
+			m = GripMiddleware(dummy_get_response)
+		else:
+			m = GripMiddleware()
+
+		req = MockRequest()
+		req.method = 'GET'
+		req.META = {}
+
+		self.assertFalse(hasattr(req, 'grip'))
+
+		m.process_request(req)
+
+		self.assertTrue(hasattr(req, 'grip'))
+
+		instruct = req.grip.start_instruct()
+		instruct.add_channel('apple')
+		instruct.add_channel(Channel('banana', prev_id='1'))
+		instruct.meta = {'user': '123', 'id_format': 'channel_1:%(events-channel_1)s'}
+
+		resp = HttpResponse()
+		resp = m.process_response(req, resp)
+
+		self.assertFalse('Grip-Hold' in resp)
+		self.assertEqual(resp['Grip-Channel'], 'apple, banana; prev-id=1')
+		self.assertEqual(resp['Grip-Set-Meta'], 'user="123", id_format="channel_1:%(events-channel_1)s"')
+
 
 	def test_wscontext(self):
 		if django.VERSION[0] >= 4:
